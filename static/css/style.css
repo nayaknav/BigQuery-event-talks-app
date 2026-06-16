@@ -1338,3 +1338,116 @@ html[data-theme="light"] .shimmer-footer::after {
         max-width: 100%;
     }
 }
+
+/* Warning Banner */
+.warning-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--color-deprecation-bg);
+    border: 1px solid var(--color-deprecation-border);
+    border-radius: 12px;
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+    animation: fade-in 0.3s ease;
+}
+
+.warning-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--color-deprecation);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.warning-banner-content svg {
+    flex-shrink: 0;
+}
+
+.btn-warning-retry {
+    background-color: var(--color-deprecation);
+    color: var(--bg-primary);
+    border: none;
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.btn-warning-retry:hover {
+    opacity: 0.9;
+}
+
+/* Read More / Collapsible Card Body */
+.card-body-wrapper {
+    position: relative;
+    transition: max-height var(--transition-speed) ease;
+    overflow: hidden;
+}
+
+.card-body-wrapper.collapsed {
+    max-height: 120px; /* limits size when collapsed */
+}
+
+.card-body-wrapper.collapsed .read-more-gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 45px;
+    background: linear-gradient(transparent, var(--bg-secondary));
+    pointer-events: none;
+    transition: opacity var(--transition-speed) ease;
+}
+
+html[data-theme="light"] .card-body-wrapper.collapsed .read-more-gradient {
+    background: linear-gradient(transparent, var(--bg-secondary));
+}
+
+.card-body-wrapper:not(.collapsed) .read-more-gradient {
+    opacity: 0;
+}
+
+.read-more-toggle {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    align-self: flex-start;
+    padding: 0;
+    margin-top: -0.25rem;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s ease;
+}
+
+.read-more-toggle:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
+/* Load More Container */
+.load-more-container {
+    display: flex;
+    justify-content: center;
+    margin: 2.5rem 0 1.5rem 0;
+    animation: fade-in 0.3s ease;
+}
+
+#loadMoreBtn {
+    padding: 0.75rem 2rem;
+}
+
+.card-action-btn.btn-copy-link:hover {
+    color: var(--primary);
+    border-color: var(--primary-glow);
+    background-color: var(--primary-glow);
+}
+

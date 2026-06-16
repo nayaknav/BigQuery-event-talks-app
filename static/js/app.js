@@ -2,6 +2,7 @@
 let releaseNotes = [];
 let activeFilter = 'all';
 let searchKeyword = '';
+let visibleDaysCount = 10;
 
 // DOM Elements
 const elements = {
@@ -34,6 +35,11 @@ const elements = {
     tweetCharCount: document.getElementById('tweetCharCount'),
     postTweetBtn: document.getElementById('postTweetBtn'),
     
+    // Offline / Cache Banner
+    cacheWarningBanner: document.getElementById('cacheWarningBanner'),
+    cacheWarningText: document.getElementById('cacheWarningText'),
+    bannerRetryBtn: document.getElementById('bannerRetryBtn'),
+    
     // Toast
     toastContainer: document.getElementById('toastContainer')
 };
@@ -56,6 +62,10 @@ const icons = {
                 <line x1="16" y1="13" x2="8" y2="13"></line>
                 <line x1="16" y1="17" x2="8" y2="17"></line>
                 <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>`,
+    copyLink: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
             </svg>`
 };
 
@@ -95,7 +105,7 @@ async function fetchData(forceRefresh = false) {
         
         if (result.status === 'success') {
             releaseNotes = result.data;
-            updateStatusIndicator(result.source, result.last_updated);
+            updateStatusIndicator(result.source, result.last_updated, result.warning);
             renderTimeline();
             
             if (forceRefresh) {
@@ -115,6 +125,7 @@ function showLoadingState() {
     elements.timelineContainer.classList.add('hidden');
     elements.emptyState.classList.add('hidden');
     elements.errorState.classList.add('hidden');
+    elements.cacheWarningBanner.classList.add('hidden');
     
     elements.refreshBtn.classList.add('loading');
     elements.refreshBtn.disabled = true;
@@ -123,7 +134,7 @@ function showLoadingState() {
     elements.statusLabel.textContent = 'Updating...';
 }
 
-function updateStatusIndicator(source, lastUpdated) {
+function updateStatusIndicator(source, lastUpdated, warningMsg = null) {
     elements.refreshBtn.classList.remove('loading');
     elements.refreshBtn.disabled = false;
     
@@ -132,12 +143,16 @@ function updateStatusIndicator(source, lastUpdated) {
     if (source === 'live') {
         elements.connectionStatus.classList.add('live');
         elements.statusLabel.textContent = 'Connected • Live';
+        elements.cacheWarningBanner.classList.add('hidden');
     } else if (source === 'cache') {
         elements.connectionStatus.classList.add('cached');
         elements.statusLabel.textContent = 'Connected • Cached';
+        elements.cacheWarningBanner.classList.add('hidden');
     } else {
         elements.connectionStatus.classList.add('error');
         elements.statusLabel.textContent = 'Fallback Cache';
+        elements.cacheWarningBanner.classList.remove('hidden');
+        elements.cacheWarningText.textContent = warningMsg || 'Failed to fetch live feed. Showing cached copy.';
     }
     
     // Last Updated Time
@@ -154,6 +169,7 @@ function showErrorState(message) {
     elements.feedShimmer.classList.add('hidden');
     elements.timelineContainer.classList.add('hidden');
     elements.emptyState.classList.add('hidden');
+    elements.cacheWarningBanner.classList.add('hidden');
     
     elements.errorState.classList.remove('hidden');
     elements.errorDescription.textContent = message;
@@ -220,8 +236,10 @@ function renderTimeline() {
     elements.timelineContainer.classList.remove('hidden');
     elements.timelineContainer.innerHTML = '';
     
-    // Generate HTML for each entry
-    filteredEntries.forEach((entry, entryIndex) => {
+    // Generate HTML for each entry, sliced to visibleDaysCount
+    const entriesToRender = filteredEntries.slice(0, visibleDaysCount);
+    
+    entriesToRender.forEach((entry, entryIndex) => {
         const entryEl = document.createElement('div');
         entryEl.className = 'timeline-entry';
         // Add subtle animation delay for each timeline entry
@@ -260,6 +278,26 @@ function renderTimeline() {
                 bodyHtml = highlightKeyword(bodyHtml, searchKeyword);
             }
             
+            const isLong = update.description_text.length > 300;
+            let bodyWrapperHtml = '';
+            if (isLong) {
+                bodyWrapperHtml = `
+                    <div class="card-body-wrapper collapsed" id="desc-${entryIndex}-${updateIndex}">
+                        <div class="card-body">
+                            ${bodyHtml}
+                        </div>
+                        <div class="read-more-gradient"></div>
+                    </div>
+                    <button class="read-more-toggle" data-target="desc-${entryIndex}-${updateIndex}">Read More</button>
+                `;
+            } else {
+                bodyWrapperHtml = `
+                    <div class="card-body">
+                        ${bodyHtml}
+                    </div>
+                `;
+            }
+            
             updatesHtml += `
                 <div class="update-card" style="--card-accent-color: ${accentColor}; --card-border-color: ${borderColor}; --card-glow-color: ${glowColor}">
                     <div class="card-header">
@@ -268,13 +306,15 @@ function renderTimeline() {
                             ${entry.date} ${icons.link}
                         </a>
                     </div>
-                    <div class="card-body">
-                        ${bodyHtml}
-                    </div>
+                    ${bodyWrapperHtml}
                     <div class="card-footer">
                         <button class="card-action-btn btn-copy" data-text="${escapeHtml(update.description_text)}" title="Copy text to clipboard">
                             ${icons.copy}
                             <span>Copy Text</span>
+                        </button>
+                        <button class="card-action-btn btn-copy-link" data-link="${escapeHtml(entry.link)}" title="Copy link to this update">
+                            ${icons.copyLink}
+                            <span>Copy Link</span>
                         </button>
                         <button class="card-action-btn btn-export-csv" 
                                 data-category="${escapeHtml(update.category)}" 
@@ -309,6 +349,22 @@ function renderTimeline() {
         
         elements.timelineContainer.appendChild(entryEl);
     });
+    
+    // Add Load More button if there are more entries remaining
+    if (filteredEntries.length > visibleDaysCount) {
+        const loadMoreDiv = document.createElement('div');
+        loadMoreDiv.className = 'load-more-container';
+        loadMoreDiv.id = 'loadMoreContainer';
+        loadMoreDiv.innerHTML = `
+            <button class="btn btn-primary" id="loadMoreBtn">Load More Updates</button>
+        `;
+        elements.timelineContainer.appendChild(loadMoreDiv);
+        
+        document.getElementById('loadMoreBtn').addEventListener('click', () => {
+            visibleDaysCount += 10;
+            renderTimeline();
+        });
+    }
     
     // Attach event listeners to the newly rendered buttons
     attachCardActionListeners();
@@ -372,7 +428,13 @@ function closeTweetComposer() {
 
 function updateCharCounter() {
     const text = elements.tweetTextarea.value;
-    const len = text.length;
+    
+    // X (Twitter) rules: any URL is counted as exactly 23 characters
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const urls = text.match(urlRegex) || [];
+    const textWithoutUrls = text.replace(urlRegex, '');
+    const len = textWithoutUrls.length + (urls.length * 23);
+    
     const limit = 280;
     const remaining = limit - len;
     
@@ -404,7 +466,14 @@ function updateCharCounter() {
 
 function postTweet() {
     const text = elements.tweetTextarea.value;
-    if (text.length > 280) {
+    
+    // X (Twitter) rules: any URL is counted as exactly 23 characters
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const urls = text.match(urlRegex) || [];
+    const textWithoutUrls = text.replace(urlRegex, '');
+    const len = textWithoutUrls.length + (urls.length * 23);
+    
+    if (len > 280) {
         showToast('Tweet text exceeds 280 characters limit!', 'error');
         return;
     }
@@ -484,6 +553,7 @@ function setupEventListeners() {
         } else {
             elements.clearSearchBtn.classList.add('hidden');
         }
+        visibleDaysCount = 10;
         renderTimeline();
     });
     
@@ -492,6 +562,7 @@ function setupEventListeners() {
         elements.searchInput.value = '';
         searchKeyword = '';
         elements.clearSearchBtn.classList.add('hidden');
+        visibleDaysCount = 10;
         renderTimeline();
     });
     
@@ -508,6 +579,7 @@ function setupEventListeners() {
         // Add active class
         pill.classList.add('active');
         activeFilter = pill.dataset.filter;
+        visibleDaysCount = 10;
         renderTimeline();
     });
     
@@ -516,6 +588,29 @@ function setupEventListeners() {
     
     // Retry Button (inside Error State)
     elements.retryBtn.addEventListener('click', () => fetchData(true));
+    
+    // Banner Retry Connection Button
+    elements.bannerRetryBtn.addEventListener('click', () => fetchData(true));
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // '/' focuses search (except when typing in fields)
+        if (e.key === '/' && document.activeElement !== elements.searchInput && document.activeElement !== elements.tweetTextarea) {
+            e.preventDefault();
+            elements.searchInput.focus();
+            elements.searchInput.select();
+        }
+        
+        // 'Esc' clears search when focused
+        if (e.key === 'Escape' && document.activeElement === elements.searchInput) {
+            elements.searchInput.value = '';
+            searchKeyword = '';
+            elements.clearSearchBtn.classList.add('hidden');
+            elements.searchInput.blur();
+            visibleDaysCount = 10;
+            renderTimeline();
+        }
+    });
     
     // Modal Events
     elements.closeTweetModal.addEventListener('click', closeTweetComposer);
@@ -579,6 +674,21 @@ function attachCardActionListeners() {
         });
     });
     
+    // Copy Link buttons
+    document.querySelectorAll('.btn-copy-link').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const link = btn.dataset.link;
+            navigator.clipboard.writeText(link)
+                .then(() => {
+                    showToast('Copied update link to clipboard!', 'success');
+                })
+                .catch(err => {
+                    console.error('Copy failed:', err);
+                    showToast('Failed to copy link.', 'error');
+                });
+        });
+    });
+    
     // Export CSV buttons
     document.querySelectorAll('.btn-export-csv').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -600,6 +710,22 @@ function attachCardActionListeners() {
             openTweetComposer(category, date, text, link);
         });
     });
+    
+    // Read More toggle buttons
+    document.querySelectorAll('.read-more-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetId = btn.dataset.target;
+            const wrapper = document.getElementById(targetId);
+            if (wrapper.classList.contains('collapsed')) {
+                wrapper.classList.remove('collapsed');
+                btn.textContent = 'Show Less';
+            } else {
+                wrapper.classList.add('collapsed');
+                btn.textContent = 'Read More';
+                btn.closest('.update-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    });
 }
 
 function resetAllFilters() {
@@ -616,6 +742,7 @@ function resetAllFilters() {
         }
     });
     activeFilter = 'all';
+    visibleDaysCount = 10;
     
     renderTimeline();
 }
