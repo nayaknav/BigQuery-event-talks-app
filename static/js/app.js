@@ -49,6 +49,13 @@ const icons = {
             </svg>`,
     link: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"></path>
+            </svg>`,
+    csv: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
             </svg>`
 };
 
@@ -268,6 +275,15 @@ function renderTimeline() {
                         <button class="card-action-btn btn-copy" data-text="${escapeHtml(update.description_text)}" title="Copy text to clipboard">
                             ${icons.copy}
                             <span>Copy Text</span>
+                        </button>
+                        <button class="card-action-btn btn-export-csv" 
+                                data-category="${escapeHtml(update.category)}" 
+                                data-date="${escapeHtml(entry.date)}" 
+                                data-text="${escapeHtml(update.description_text)}" 
+                                data-link="${escapeHtml(entry.link)}"
+                                title="Export this update to CSV">
+                            ${icons.csv}
+                            <span>Export CSV</span>
                         </button>
                         <button class="card-action-btn btn-tweet-action" 
                                 data-category="${escapeHtml(update.category)}" 
@@ -518,6 +534,35 @@ function setupEventListeners() {
     elements.postTweetBtn.addEventListener('click', postTweet);
 }
 
+function exportCardToCSV(date, category, text, link) {
+    const escapeCSV = (str) => {
+        if (!str) return '""';
+        return '"' + str.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
+    };
+    
+    const headers = ['Date', 'Category', 'Description', 'Link'];
+    const row = [date, category, text, link];
+    
+    const csvContent = [
+        headers.join(','),
+        row.map(escapeCSV).join(',')
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const linkEl = document.createElement('a');
+    
+    const formattedDate = date.replace(/[\s,]+/g, '_');
+    linkEl.setAttribute('href', url);
+    linkEl.setAttribute('download', `BigQuery_Release_${formattedDate}_${category}.csv`);
+    linkEl.style.visibility = 'hidden';
+    document.body.appendChild(linkEl);
+    linkEl.click();
+    document.body.removeChild(linkEl);
+    
+    showToast(`Exported ${category} update to CSV!`, 'success');
+}
+
 function attachCardActionListeners() {
     // Copy Text buttons
     document.querySelectorAll('.btn-copy').forEach(btn => {
@@ -531,6 +576,17 @@ function attachCardActionListeners() {
                     console.error('Copy failed:', err);
                     showToast('Failed to copy text. Please copy manually.', 'error');
                 });
+        });
+    });
+    
+    // Export CSV buttons
+    document.querySelectorAll('.btn-export-csv').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const category = btn.dataset.category;
+            const date = btn.dataset.date;
+            const text = btn.dataset.text;
+            const link = btn.dataset.link;
+            exportCardToCSV(date, category, text, link);
         });
     });
     
